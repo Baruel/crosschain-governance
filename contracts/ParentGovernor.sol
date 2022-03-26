@@ -105,14 +105,14 @@ contract ParentGovernor is ILayerZeroReceiver {
     /// @notice Array of chain IDs
     uint16[] public childChains;
 
+    /// @notice Token addresses of the ChildGovernor to each chain IDs
+    mapping (uint16 => address) public childGovernors;
+
     /// @notice The official record of all proposals ever proposed
     mapping (uint => Proposal) public proposals;
 
     /// @notice The latest proposal for each proposer
     mapping (address => uint) public latestProposalIds;
-
-    /// @notice Token addresses of the ChildGovernor to each chain IDs
-    mapping (uint16 => address) public childGovernors;
 
     /// @notice An event emitted when a new proposal is created
     event ProposalCreated(
@@ -162,12 +162,12 @@ contract ParentGovernor is ILayerZeroReceiver {
 
     /**
      * @param timelock_ - Contract responsible for queuing and executing governance decisions
-     * @param staking_ - Contract with voting power logic
+     * @param token_ - Contract with voting power logic
      */
-    constructor(address timelock_, address staking_) {
-        require(timelock_ != address(0) || staking_ != address(0), "ERR_ZERO_ADDRESS");
+    constructor(address timelock_, address token_) {
+        require(timelock_ != address(0) || token_ != address(0), "ERR_ZERO_ADDRESS");
         timelock = TimelockInterface(timelock_);
-        token = IGovToken(staking_);
+        token = IGovToken(token_);
     }
 
     /**
@@ -236,6 +236,17 @@ contract ParentGovernor is ILayerZeroReceiver {
     function setTimelock(address contractAddr) external onlyOwner {
         require(contractAddr != address(0), "ERR_ZERO_ADDRESS");
         timelock = TimelockInterface(contractAddr);
+    }
+
+    /**
+     * @notice Add new child chain to the parent governor
+     *
+     * @param chainId - Chain ID to be added
+     * @param childGovernor - ChildGovernor address on the chain to be added
+     */
+    function addChain(uint16 chainId, address childGovernor) external onlyOwner {
+        childChains.push(chainId);
+        childGovernors[chainId] = childGovernor;
     }
 
     /**
@@ -446,6 +457,11 @@ contract ParentGovernor is ILayerZeroReceiver {
         return _castVote(signatory, proposalId, support);
     }
 
+    /**
+     * @notice Close all child polls to aggregate votes
+     *
+     * @param proposalId - ID of proposal to cast a vote to
+     */  
     function aggregateChildPolls(uint proposalId) public {
         ProposalState curState = state(proposalId);
         require(curState == ProposalState.Aggregating, "ERR_NOT_AGGREGATING");
@@ -456,6 +472,7 @@ contract ParentGovernor is ILayerZeroReceiver {
         }
     }
 
+    /// @notice Receives messages from LayerZero
     function lzReceive(uint16 _srcChainId, bytes memory _srcAddress, uint64, bytes memory _payload) override external {
         require(msg.sender == address(endpoint));
 
@@ -545,7 +562,7 @@ contract ParentGovernor is ILayerZeroReceiver {
      * @return Amount of votes required for quorum
      */
     function quorumVotes() public view returns (uint) {
-        return token.getTotalVotes() / quorum;
+        return 400000e18; // 400,000 = 4% of Any Token
     } 
 
     /**
@@ -554,7 +571,7 @@ contract ParentGovernor is ILayerZeroReceiver {
      * @return Amount of votes required for proposing
      */
     function proposalThreshold() public view returns (uint) {
-        return token.getTotalVotes() / proposerPower;
+        return 100000e18; // 100,000 = 1% of Any Token
     }
 
     /**
@@ -605,9 +622,9 @@ contract ParentGovernor is ILayerZeroReceiver {
         // send LayerZero message
         endpoint.send{value:messageFee}(            // {value: messageFee} will be paid out of this contract!
             chainId,                                // destination chainId
-            abi.encodePacked(targetAddress),     // destination address of PingPong
+            abi.encodePacked(targetAddress),        // destination address of PingPong
             payload,                                // abi.encode()'ed bytes
-            payable(msg.sender),                             // (msg.sender will be this contract) refund address (LayerZero will refund any extra gas back to caller of send()
+            payable(msg.sender),                    // refund address (LayerZero will refund any extra gas back to caller of send())
             address(0x0),                           // 'zroPaymentAddress'
             bytes("")                               // 'txParameters'
         );
@@ -635,6 +652,5 @@ interface TimelockInterface {
 
 
 interface IGovToken {
-    function getTotalVotes() external view returns (uint256);
     function getPriorVotes(address account, uint blockNumber) external view returns (uint96);
 }

@@ -13,6 +13,7 @@ contract ChildGovernor is ILayerZeroReceiver {
      * @param pollId - Poll unique id
      * @param chainId - Chain id of the parent proposal
      * @param parentId - Unique id for looking up a proposal in the parent chain
+     * @param startBlock - The block at which voting begins: holders must delegate their votes prior to this block
      * @param forVotes - Current number of votes in favor of this poll
      * @param againstVotes - Current number of votes in opposition to this poll
      * @param closed - Flag marking whether the poll has been closed
