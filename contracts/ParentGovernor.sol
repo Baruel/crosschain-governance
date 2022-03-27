@@ -162,11 +162,13 @@ contract ParentGovernor is ILayerZeroReceiver {
 
     /**
      * @param timelock_ - Contract responsible for queuing and executing governance decisions
+     * @param endpoint_ - LayerZero endpoint address on parent chain
      * @param token_ - Contract with voting power logic
      */
-    constructor(address timelock_, address token_) {
+    constructor(address timelock_, address endpoint_, address token_) {
         require(timelock_ != address(0) || token_ != address(0), "ERR_ZERO_ADDRESS");
         timelock = TimelockInterface(timelock_);
+        endpoint = ILayerZeroEndpoint(endpoint_);
         token = IGovToken(token_);
     }
 
@@ -240,11 +242,12 @@ contract ParentGovernor is ILayerZeroReceiver {
 
     /**
      * @notice Add new child chain to the parent governor
+     * @dev This should be an onlyOwner function, but I kept it open to test it
      *
      * @param chainId - Chain ID to be added
      * @param childGovernor - ChildGovernor address on the chain to be added
      */
-    function addChain(uint16 chainId, address childGovernor) external onlyOwner {
+    function addChain(uint16 chainId, address childGovernor) external {
         childChains.push(chainId);
         childGovernors[chainId] = childGovernor;
     }
@@ -628,7 +631,10 @@ contract ParentGovernor is ILayerZeroReceiver {
             address(0x0),                           // 'zroPaymentAddress'
             bytes("")                               // 'txParameters'
         );
-    } 
+    }
+
+    receive() public payable {
+    }
 
 }
 
